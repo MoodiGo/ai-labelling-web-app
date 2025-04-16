@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { collection, addDoc, doc, getDoc, updateDoc, Timestamp, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
-import { PlacesApiService } from '../services/places_api';
+import { MockPlacesApiService, PlacesApiService } from '../services/places_api';
 import { LoadScript } from '@react-google-maps/api';
 import { userDataService } from '../services/user_data';
 import { UserInfo } from '../models/UserInfo';
@@ -17,7 +17,10 @@ interface Place {
 }
 
 const PlaceLabeling = () => {
+  const mock = true;
   const [places, setPlaces] = useState<google.maps.places.PlaceResult[]>([]);
+  const [currentPlace, setCurrentPlace] = useState<google.maps.places.PlaceResult | null>(null);
+  const [placePicUrl, setPlacePicUrl] = useState<string | null>(null);
 
   const [currentPlaceIndex, setCurrentPlaceIndex] = useState(0);
   const [vibes, setVibes] = useState<string[]>(['', '', '']);
@@ -45,59 +48,52 @@ const PlaceLabeling = () => {
         await placesService.search();
         setPlaces(placesService.resultsList);
         setLoading(false);
+        setVibes([]);
       } catch (error) {
         console.error("Error initializing session:", error);
         setError('Failed to initialize session');   
       }
     };
+
+    const initSessionMock = async () => {
+      try {
+        const placesService = new MockPlacesApiService();
+        await placesService.search();
+        setPlaces(placesService.resultsList);
+        setLoading(false);
+        setVibes([]);
+      } catch (error) {
+        console.log("Error initializing session:", error);
+      }
+    }
+
     function setUser() {
       if(auth.getCurrentUser()!==null) {
         UserInfo.getFromDb(auth.getCurrentUser()!.uid!)
         .then((userInfo) => {
           userDataService.setUserInfo(userInfo!);      
           console.log(userDataService.getUserInfo()?.id);
-          initSession();
-
+          !mock ? initSession() : initSessionMock();
         });
       }
     }
     setUser();
   }, []);
 
-  // const fetchPlaces = async () => {
-  //   try {
-  //     // In a real app, you would fetch from Google Places API
-  //     // For this example, we'll use mock data
-  //     const mockPlaces: Place[] = [
-  //       {
-  //         place_id: 'place1',
-  //         name: 'Central Park',
-  //         vicinity: 'New York, NY',
-  //         types: ['park', 'tourist_attraction']
-  //       },
-  //       {
-  //         place_id: 'place2',
-  //         name: 'Empire State Building',
-  //         vicinity: 'New York, NY',
-  //         types: ['tourist_attraction', 'point_of_interest']
-  //       },
-  //       {
-  //         place_id: 'place3',
-  //         name: 'Times Square',
-  //         vicinity: 'New York, NY',
-  //         types: ['tourist_attraction', 'point_of_interest']
-  //       },
-  //       // Add more mock places as needed
-  //     ];
-      
-  //     // setPlaces(mockPlaces);
-  //     setLoading(false);
-  //   } catch (error) {
-  //     console.error("Error fetching places:", error);
-  //     setError('Failed to fetch places');
-  //     setLoading(false);
-  //   }
-  // };
+  useEffect(() => {
+    setCurrentPlace(places[currentPlaceIndex]);
+  }, [places, currentPlaceIndex]);
+
+
+  useEffect(() => {
+    if (currentPlace) {
+      getPicture();
+    }
+  }, [currentPlace]);
+  
+  const getPicture = useCallback(async () => {
+    setPlacePicUrl(await PlacesApiService.getPictureUrl(currentPlace!));
+  }, [currentPlace])
 
   const handleVibeChange = (index: number, value: string) => {
     const newVibes = [...vibes];
@@ -153,8 +149,9 @@ const PlaceLabeling = () => {
       setError('Failed to submit label');
     }
   };
+  
 
-  if (loading) {
+  if (loading || !currentPlace || currentPlace===null) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 
@@ -172,13 +169,8 @@ const PlaceLabeling = () => {
     );
   }
 
-  const currentPlace = places[currentPlaceIndex];
 
   return (
-    <LoadScript
-      googleMapsApiKey="AIzaSyDuDgx-SdhssZJhnPUDJcVM24olMCobiI8"
-      libraries={["places"]}
-    >
     <div className="min-h-screen bg-gray-100">
       <header className="bg-white shadow">
         <div className="flex items-center justify-between px-4 py-6 mx-auto max-w-7xl sm:px-6 lg:px-8">
@@ -200,10 +192,22 @@ const PlaceLabeling = () => {
       <main className="px-4 py-6 mx-auto max-w-7xl sm:px-6 lg:px-8">
         <div className="p-6 bg-white rounded-lg shadow">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold">{currentPlace.name}</h2>
-            <p className="text-gray-600">{currentPlace.vicinity}</p>
+            <div className="flex items-center justify-center mb-4">
+              {currentPlace!.photos && currentPlace!.photos.length > 0 ? (
+                <img
+                  src={mock ? "https://lh3.googleusercontent.com/places/ANXAkqHNmsWc59aKgwMc3uoAwcDtL-GUbUcAZiyc-0-M-WE7LRrNcNqeL6jEx5qiLTdRpx1gx6tqpLDFqS5Y5B9q00wCUwVsmEIjVIo"
+                    : placePicUrl??""}
+                  alt={currentPlace!.name}
+                  className="object-cover w-full h-64 rounded-lg shadow"
+                />
+              ) : (
+                <div className="w-full h-64 bg-gray-200 rounded-lg"></div>
+              )}
+            </div>
+            <h2 className="text-xl font-semibold">{currentPlace!.name}</h2>
+            <p className="text-gray-600">{currentPlace!.vicinity}</p>
             <div className="flex flex-wrap mt-2 gap-1">
-              {currentPlace.types?.map((type, index) => (
+              {currentPlace!.types?.map((type, index) => (
                 <span 
                   key={index} 
                   className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded-full"
@@ -250,7 +254,6 @@ const PlaceLabeling = () => {
         </div>
       </main>
     </div>
-    </LoadScript>
   )
   ;
 };

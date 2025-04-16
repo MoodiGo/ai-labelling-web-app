@@ -38,12 +38,16 @@ export class UserInfo {
         this.count_places_labeled_total += 1;
     }
 
-    addReviewedPlace(placeId: string) {
+    async addReviewedPlace(placeId: string) : Promise<boolean> {
         if (!this.places_reviewed_ids.includes(placeId)) {
             this.places_reviewed_ids.push(placeId);
             this._incrementPlacesLabeled();
+            await this.sendToDb();
+            return true;
         }
+        return false;
     }
+    
     getData(){
         return {
             count_places_labeled_last_session: this.count_places_labeled_last_session,

@@ -1,5 +1,16 @@
 import { PlaceType } from "../types/PlaceTypes";
 import { userDataService } from "./user_data";
+import { result } from '../mock/google_places_api';
+
+export interface iPlacesApiService {
+    instance: google.maps.places.PlacesService | null;
+    refLat: number | null;
+    refLng: number | null;
+    resultsList: google.maps.places.PlaceResult[];
+    userLabeledPlaces: string[];
+
+    search(): Promise<void>;
+}
 
 export class PlacesApiService {
     instance: google.maps.places.PlacesService | null;
@@ -57,6 +68,39 @@ export class PlacesApiService {
         console.log("User labeled places:", this.userLabeledPlaces);
     }
 
+    static async getPictureUrl(place: google.maps.places.PlaceResult): Promise<string> {
+      // const reqUrl = `https://maps.googleapis.com/maps/api/place/details/json?placeid=${place.place_id}&key=AIzaSyDuDgx-SdhssZJhnPUDJcVM24olMCobiI8`;
+      
+      // `https://maps.googleapis.com/maps/api/place/details/json?place_id=${currentPlace.place_id}&fields=photos&key=AIzaSyDuDgx-SdhssZJhnPUDJcVM24olMCobiI8`;
+      // const response = await fetch(reqUrl);
+      const instance = new google.maps.places.PlacesService(document.createElement("div"));
+      const request: google.maps.places.PlaceDetailsRequest = {
+        placeId: place!.place_id!,
+        fields: ["photos"],
+      };
+      let photoUrl = '';
+
+      return await new Promise<string>((resolve) => {
+        instance.getDetails(request, () => {
+          if(place.photos && place.photos.length > 0) {
+            photoUrl = place.photos![0].getUrl({ maxWidth: 400 });
+          }
+          resolve(photoUrl.split("=s")[0]);
+        });
+      });
+
+
+      // if (response.status !== 200) {
+      //   console.error("Error fetching place details:", response.status);
+      //   return '';
+      // }
+      // const data = await response.json();
+      // console.log(data);
+      // const photoRef = data.result.photos[0].photo_reference;
+      // const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoRef}&key=AIzaSyDuDgx-SdhssZJhnPUDJcVM24olMCobiI8`;
+
+    }
+
     async _searchByType(type: string, location: google.maps.LatLng): Promise<void> {
         if (this.resultsList.length >= 25) {
           console.warn("Already found 25 places, stopping search.");
@@ -86,21 +130,47 @@ export class PlacesApiService {
         } catch (error) {
           console.warn(`Error fetching places of type ${type}:`, error);
         }
-      }
+    }
       
-      // Helper function to convert nearbySearch into a promise
-      private _fetchNearbyPlaces(
-        request: google.maps.places.PlaceSearchRequest
-      ): Promise<google.maps.places.PlaceResult[]> {
-        return new Promise((resolve, reject) => {
-          this.instance!.nearbySearch(request, (results, status) => {
-            if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-              resolve(results);
-            } else {
-              reject(new Error("Failed to fetch places or no results found."));
-            }
-          });
+    // Helper function to convert nearbySearch into a promise
+    private _fetchNearbyPlaces(
+      request: google.maps.places.PlaceSearchRequest
+    ): Promise<google.maps.places.PlaceResult[]> {
+      return new Promise((resolve, reject) => {
+        this.instance!.nearbySearch(request, (results, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+            resolve(results);
+          } else {
+            reject(new Error("Failed to fetch places or no results found."));
+          }
         });
-      }
+      });
+    }
       
+}
+
+export class MockPlacesApiService {
+    instance: google.maps.places.PlacesService | null;
+    refLat: number | null;
+    refLng: number | null;
+    resultsList: google.maps.places.PlaceResult[];
+    userLabeledPlaces: string[];
+
+    constructor() {
+        this.instance = null;
+        this.refLat = 0;
+        this.refLng = 0;
+        this.resultsList = [];
+        this.userLabeledPlaces = [];
+    }
+
+    async search(): Promise<void> {
+        // No-op for mock service
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            this.resultsList = result(); // Use mock data
+            resolve();
+          }, 1000);
+      });
+    }
 }
