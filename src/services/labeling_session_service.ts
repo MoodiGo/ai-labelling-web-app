@@ -14,38 +14,56 @@ export class LabelingSessionService {
     constructor() {
         this._setLastSessionAndCountPlacesLabeled();
         this.startedAt = new Date(Date.now());
-        this.placesLabeledIds = this._getUserLabeledIds();
+        this.placesLabeledIds = [];
+        this._getUserLabeledIds()
+        .then((ids) => {
+            this.placesLabeledIds = ids;
+        });
     }
 
-    _setLastSessionAndCountPlacesLabeled() {
-        const userData = userDataService.getUserInfo();
-        const lastSessionTime = userData?.last_session_at;
+    static async instance() {
+        const instance = new LabelingSessionService();
+        await instance._setLastSessionAndCountPlacesLabeled();
+        instance.placesLabeledIds = await instance._getUserLabeledIds() 
+        return instance;
+    }
 
-        if (lastSessionTime && lastSessionTime!=null) {
-            const date = new Date(lastSessionTime);
-            this.lastSessionTime = date;
+    
+    async _setLastSessionAndCountPlacesLabeled() {
+        const userData = await userDataService.getUserInfo();
+        const rawLastSession = userData?.last_session_at;
+        const parsedDate = rawLastSession ? new Date(rawLastSession) : null;
+    
+        if (parsedDate && !isNaN(parsedDate.getTime())) {
+            this.lastSessionTime = parsedDate;
         } else {
-            this.lastSessionTime = new Date(Date.now());
+            console.warn("Invalid or missing last_session_at. Using current time as fallback.");
+            this.lastSessionTime = new Date(); // fallback para agora
         }
-
-        const lastSession = this.lastSessionTime?.getTime() || 0;
+        const lastSession = this.lastSessionTime.getTime();
         const currentTime = Date.now();
         const timeSinceLastSession = currentTime - lastSession;
         const twentyFourHours = 24 * 60 * 60 * 1000;
         const maxPlaces = 25;
-
+    
         const hasBeen24Hours = timeSinceLastSession > twentyFourHours;
-        if(hasBeen24Hours) {
+    
+        if (hasBeen24Hours) {
             this.countPlacesLabeled = 0;
             this.canLabel = true;
-        }else{
-            this.countPlacesLabeled = userData?.count_places_labeled_last_session || 0;
+        } else {
+            this.countPlacesLabeled = typeof userData?.count_places_labeled_last_session === "number"
+                ? userData.count_places_labeled_last_session
+                : 0;
             this.canLabel = this.countPlacesLabeled < maxPlaces;
         }
     }
     
-    _getUserLabeledIds() : string[] {
-        const userId = userDataService.getUserInfo()?.id;
+    
+    async _getUserLabeledIds() : Promise<string[]> {
+        const user = await userDataService.getUserInfo();
+        const userId = user?.firebase_uid;
+
         try {
             const collectionRef = collection(db, "reviews");
             const q = query(collectionRef, where("reviewer_id", "==", userId));
@@ -97,13 +115,12 @@ export class LabelingSessionService {
 
         this.addLabeledPlace(placeId);
 
-        let user = userDataService.getUserInfo();
+        let user = await userDataService.getUserInfo();
 
         const now = new Date(Date.now());
         if (user!== null) {
-            user.count_places_labeled_last_session = this.countPlacesLabeled;
 
-            const updatedUser = await user.addReviewedPlace(placeId, this.startedAt ?? now);
+            const updatedUser = await user.addReviewedPlace(placeId, this.startedAt ?? now, this.countPlacesLabeled);
 
             if(updatedUser){
                 const newUser = await UserInfo.getFromDb(user.firebase_uid);
@@ -138,7 +155,7 @@ export class LabelingSessionService {
     }
 
     async skipPlace(placeId: string): Promise<void> {
-        let user = userDataService.getUserInfo();
+        let user = await userDataService.getUserInfo();
         await user?.skipPlace(placeId);
     }
 }

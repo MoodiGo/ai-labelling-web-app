@@ -1,10 +1,38 @@
-"use client"
-
 import { useState, useEffect } from "react"
-import { collection, query, where, getDocs, Timestamp } from "firebase/firestore"
-import { auth, db } from "../firebase"
 import { useNavigate } from "react-router-dom"
-import { userInfo } from "os"
+import { auth } from "../firebase"
+import {
+  AppBar,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CircularProgress,
+  Container,
+  Grid,
+  LinearProgress,
+  Paper,
+  Toolbar,
+  Typography,
+} from "@mui/material"
+import { createTheme, ThemeProvider } from "@mui/material/styles"
+import { teal } from "@mui/material/colors"
+import LogoutIcon from "@mui/icons-material/Logout"
+import LocationOnIcon from "@mui/icons-material/LocationOn"
+import TimelineIcon from "@mui/icons-material/Timeline"
+import AccessTimeIcon from "@mui/icons-material/AccessTime"
+import { userDataService } from "../services/user_data"
+import { LabelingSessionService } from "../services/labeling_session_service"
+
+// Create a theme instance with teal as the primary color
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: teal[500],
+    },
+  },
+})
 
 const Dashboard = () => {
   const [userName, setUserName] = useState("")
@@ -18,32 +46,22 @@ const Dashboard = () => {
       if (!auth.getCurrentUser()) return
 
       try {
-        // Get current date at midnight
-        // const today = new Date()
-        // today.setHours(0, 0, 0, 0)
+        userDataService.getUserInfo()
+        .then((userInfo) => {
+          if (!userInfo) {
+            console.error("User info not found.")
+            return
+          }
+          setUserName(userInfo?.name || "Explorer")
+          LabelingSessionService.instance()
+          .then((session) => {
+            setSessionActive(session.canLabel)
+            setPlacesLabeled(session.countPlacesLabeled)
+            console.log("Session active:", session.countPlacesLabeled)
+          });
+        })
 
-        // Query for today's session
-        // const sessionQuery = query(
-        //   collection(db, "sessions"),
-        //   where("userId", "==", auth.getCurrentUser()!.uid),
-        //   where("date", ">=", Timestamp.fromDate(today)),
-        // )
-
-        // const sessionSnapshot = await getDocs(sessionQuery)
-
-        // if (!sessionSnapshot.empty) {
-        //   const sessionData = sessionSnapshot.docs[0].data()
-        //   setSessionActive(true)
-        //   setPlacesLabeled(sessionData.placesLabeled || 0)
-        // }
-
-        // // Get user data
-        // const userDoc = await getDocs(query(collection(db, "users"), where("email", "==", auth.getCurrentUser()!.email)))
-
-        // if (!userDoc.empty) {
-        //   const userData = userDoc.docs[0].data()
-        //   setUserName(userData.location || "User")
-        // }
+      
       } catch (error) {
         console.error("Error checking session:", error)
       } finally {
@@ -56,8 +74,7 @@ const Dashboard = () => {
 
   const handleSignOut = async () => {
     try {
-      auth.signOut();
-      // await signOut(auth)
+      auth.signOut()
       navigate("/login")
     } catch (error) {
       console.error("Error signing out:", error)
@@ -69,56 +86,131 @@ const Dashboard = () => {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh" bgcolor="#f5f5f5">
+        <CircularProgress color="primary" />
+        <Typography variant="body1" sx={{ ml: 2 }}>
+          Loading your dashboard...
+        </Typography>
+      </Box>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow">
-        <div className="flex items-center justify-between px-4 py-6 mx-auto max-w-7xl sm:px-6 lg:px-8">
-          <h1 className="text-2xl font-bold text-gray-900">Place Labeling Dashboard</h1>
-          <button
-            onClick={handleSignOut}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
-          >
-            Sign Out
-          </button>
-        </div>
-      </header>
+    <ThemeProvider theme={theme}>
+      <Box sx={{ flexGrow: 1, bgcolor: "#f5f5f5", minHeight: "100vh" }}>
+        <AppBar position="static">
+          <Toolbar>
+            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+              Place Labeling Dashboard
+            </Typography>
+            <Button color="inherit" startIcon={<LogoutIcon />} onClick={handleSignOut}>
+              Sign Out
+            </Button>
+          </Toolbar>
+        </AppBar>
 
-      <main className="px-4 py-6 mx-auto max-w-7xl sm:px-6 lg:px-8">
-        <div className="p-6 bg-white rounded-lg shadow">
-          <h2 className="mb-6 text-xl font-semibold">Welcome, {userName}</h2>
+        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+          <Grid container spacing={3}>
+            {/* Welcome Card */}
+            <Grid>
+              <Card>
+                <CardHeader
+                  title={
+                    <Box display="flex" alignItems="center">
+                      <LocationOnIcon color="primary" sx={{ mr: 1 }} />
+                      <Typography variant="h6">Welcome, {userName || "Explorer"}</Typography>
+                    </Box>
+                  }
+                  subheader="Your place labeling journey starts here"
+                />
+                <CardContent>
+                  <Box sx={{ mb: 3 }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                      <Box display="flex" alignItems="center">
+                        <TimelineIcon color="primary" sx={{ mr: 1 }} />
+                        <Typography variant="body1">Today's Progress</Typography>
+                      </Box>
+                      <Typography variant="body2" color="primary">
+                        {placesLabeled} / 25
+                      </Typography>
+                    </Box>
+                    <LinearProgress
+                      variant="determinate"
+                      value={(placesLabeled / 25) * 100}
+                      sx={{ height: 8, borderRadius: 5 }}
+                    />
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      {placesLabeled >= 25
+                        ? "You've reached the maximum number of places for today."
+                        : `You can label ${25 - placesLabeled} more places today.`}
+                    </Typography>
+                  </Box>
 
-          <div className="p-4 mb-6 bg-gray-50 rounded-md">
-            <h3 className="mb-2 text-lg font-medium">Today's Session</h3>
-            {sessionActive ? (
-              <div>
-                <p>You've labeled {placesLabeled} places today.</p>
-                <p className="mt-2 text-sm text-gray-600">
-                  {placesLabeled >= 25
-                    ? "You've reached the maximum number of places for today."
-                    : `You can label ${25 - placesLabeled} more places today.`}
-                </p>
-              </div>
-            ) : (
-              <p>You haven't started labeling places today.</p>
-            )}
-          </div>
+                  <Box sx={{ mb: 3 }}>
+                    <Box display="flex" alignItems="center" mb={1}>
+                      <AccessTimeIcon sx={{ mr: 1 }} />
+                      <Typography variant="body1">Session Status</Typography>
+                    </Box>
+                    <Paper variant="outlined" sx={{ p: 2, bgcolor: "#f9f9f9" }}>
+                      {sessionActive ? (
+                        <Typography variant="body2">
+                          You have an active labeling session today with {placesLabeled} places labeled.
+                        </Typography>
+                      ) : (
+                        <Typography variant="body2">You haven't started labeling places today.</Typography>
+                      )}
+                    </Paper>
+                  </Box>
 
-          <button
-            onClick={startLabeling}
-            disabled={placesLabeled >= 25}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
-              placesLabeled >= 25 ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-            }`}
-          >
-            {sessionActive ? "Continue Labeling" : "Start Labeling"}
-          </button>
-        </div>
-      </main>
-    </div>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    onClick={startLabeling}
+                    disabled={placesLabeled >= 25}
+                    color="primary"
+                  >
+                    {sessionActive ? "Continue Labeling" : "Start Labeling"}
+                  </Button>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Statistics Card */}
+            <Grid>
+              <Card>
+                <CardHeader title="Statistics" subheader="Your contribution to the community" />
+                <CardContent>
+                  <Grid container spacing={2}>
+                    <Grid>
+                      <Paper variant="outlined" sx={{ p: 2, bgcolor: "#f9f9f9" }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Total Places Labeled
+                        </Typography>
+                        <Typography variant="h4" color="text.primary">
+                          {placesLabeled}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                    <Grid>
+                      <Paper variant="outlined" sx={{ p: 2, bgcolor: "#f9f9f9" }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Streak
+                        </Typography>
+                        <Typography variant="h4" color="text.primary">
+                          1 day
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Container>
+      </Box>
+    </ThemeProvider>
   )
 }
 
-export default Dashboard
+export default Dashboard;

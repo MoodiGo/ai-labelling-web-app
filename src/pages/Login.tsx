@@ -1,10 +1,35 @@
-"use client"
 import type React from "react"
+
 import { useState } from "react"
-import { auth } from "../firebase"
 import { Link } from "react-router-dom"
+import { auth } from "../firebase"
 import { userDataService } from "../services/user_data"
 import { UserInfo } from "../models/UserInfo"
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  Container,
+  FormControlLabel,
+  Grid,
+  Link as MuiLink,
+  TextField,
+  Typography,
+} from "@mui/material"
+import { createTheme, ThemeProvider } from "@mui/material/styles"
+import { teal } from "@mui/material/colors"
+
+// Create a theme instance with teal as the primary color
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: teal[500],
+    },
+  },
+})
 
 const Login = () => {
   const [email, setEmail] = useState("")
@@ -18,24 +43,22 @@ const Login = () => {
     setLoading(true)
 
     try {
-      await auth.signIn(email, password);
-      
-      const currentUser = auth.getCurrentUser();
-      if(!currentUser) {
+      await auth.signIn(email, password)
+
+      const currentUser = auth.getCurrentUser()
+      if (!currentUser) {
         throw new Error("User not found")
       }
 
-      const userInfo = await UserInfo.getFromDb(currentUser.uid);
+      const userInfo = await UserInfo.getFromDb(currentUser.uid)
 
-      if(!userInfo) {
+      if (!userInfo) {
         throw new Error("User info not found")
       }
-      
-      userDataService.setUserInfo(userInfo);
 
-      console.log(userDataService.getUserInfo()?.id)
+      userDataService.setUserInfo(userInfo)
 
-      window.location.reload(); // Reload the page to update the user info in the app
+      window.location.reload() // Reload the page to update the user info in the app
     } catch (err: any) {
       setError(err.message || "Failed to sign in")
     } finally {
@@ -44,67 +67,79 @@ const Login = () => {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Sign In</h1>
-          <p className="mt-2 text-gray-600">Sign in to your account</p>
-        </div>
+    <ThemeProvider theme={theme}>
+      <Container component="main" maxWidth="xs">
+        <Box
+          sx={{
+            marginTop: 8,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            minHeight: "100vh",
+          }}
+        >
+          <Card sx={{ mt: 8, width: "100%", boxShadow: 3 }}>
+            <CardContent>
+              <Typography component="h1" variant="h5" align="center" gutterBottom>
+                Sign In
+              </Typography>
+              <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
+                Enter your credentials to access your account
+              </Typography>
 
-        {error && <div className="p-3 text-sm text-red-500 bg-red-100 rounded">{error}</div>}
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {error}
+                </Alert>
+              )}
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              {loading ? "Signing In..." : "Sign In"}
-            </button>
-          </div>
-        </form>
-
-        <div className="text-center">
-          <p className="text-sm text-gray-600">
-            Don't have an account?{" "}
-            <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
-              Sign up
-            </Link>
-          </p>
-        </div>
-      </div>
-    </div>
+              <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  id="email"
+                  label="Email Address"
+                  name="email"
+                  autoComplete="email"
+                  autoFocus
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  name="password"
+                  label="Password"
+                  type="password"
+                  id="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <Grid container justifyContent="space-between" alignItems="center">
+                  <FormControlLabel control={<Checkbox value="remember" color="primary" />} label="Remember me" />
+                  <MuiLink href="#" variant="body2">
+                    Forgot password?
+                  </MuiLink>
+                </Grid>
+                <Button type="submit" fullWidth variant="contained" sx={{ mt: 3, mb: 2 }} disabled={loading}>
+                  {loading ? "Signing In..." : "Sign In"}
+                </Button>
+                <Grid container justifyContent="center">
+                  <Grid>
+                    <MuiLink component={Link} to="/register" variant="body2">
+                      {"Don't have an account? Sign Up"}
+                    </MuiLink>
+                  </Grid>
+                </Grid>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+      </Container>
+    </ThemeProvider>
   )
 }
 

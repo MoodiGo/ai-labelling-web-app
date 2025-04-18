@@ -21,23 +21,33 @@ export class PlacesApiService {
 
     constructor() {
         this.instance = null;
-        const userinfo = userDataService.getUserInfo();
-
-        this.refLat = userinfo?.location_lat || 0;
-        this.refLng = userinfo?.location_lon || 0;
+        this.refLat = 0;
+        this.refLng = 0;
         this.resultsList = [];
-        this.userLabeledPlaces = userinfo?.places_reviewed_ids?.concat(userinfo?.skipped_places_ids) || [];
-
-        // Create a dummy map element to use the PlacesService (required)
-        const dummyMap = document.createElement("div");
-        if (!window.google || !window.google.maps) {
-            throw new Error("Google Maps JavaScript API is not loaded. Ensure it is properly included in your HTML.");
-        }
-        const map = new google.maps.Map(dummyMap);
-
-        if (map) {
-            this.instance = new google.maps.places.PlacesService(map);
-        }
+        this.userLabeledPlaces = [];
+        
+        userDataService.getUserInfo()
+        .then((userinfo) => {
+            if(!userinfo) {
+                console.error("User info not found.");
+                return;
+            }
+            this.refLat = userinfo?.location_lat || 0;
+            this.refLng = userinfo?.location_lon || 0;
+            this.resultsList = [];
+            this.userLabeledPlaces = userinfo?.places_reviewed_ids?.concat(userinfo?.skipped_places_ids) || [];
+    
+            // Create a dummy map element to use the PlacesService (required)
+            const dummyMap = document.createElement("div");
+            if (!window.google || !window.google.maps) {
+                throw new Error("Google Maps JavaScript API is not loaded. Ensure it is properly included in your HTML.");
+            }
+            const map = new google.maps.Map(dummyMap);
+    
+            if (map) {
+                this.instance = new google.maps.places.PlacesService(map);
+            }
+        });
     }
 
     async search(): Promise<void> {
@@ -80,7 +90,8 @@ export class PlacesApiService {
           let photos = p!.photos ?? [];
           let count = photos.length < 3 ? photos.length : 3; 
           for(let i = 0; i < count; i++) {
-            photoUrl.push(photos[i].getUrl({ maxWidth: 400 }).split("=s")[0]);
+            const url = photos[i].getUrl({ maxWidth: 400 });
+            photoUrl.push(url);
           }
           resolve(photoUrl);
         });

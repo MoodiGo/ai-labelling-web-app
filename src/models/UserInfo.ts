@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { addDoc, collection, doc, getDocs, query, setDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
 
 export class UserInfo {
@@ -54,11 +54,12 @@ export class UserInfo {
         }
     }
 
-    async addReviewedPlace(placeId: string, reviewed_at: Date) : Promise<boolean> {
+    async addReviewedPlace(placeId: string, reviewed_at: Date, newCountInSession: number) : Promise<boolean> {
         try {
             if (!this.places_reviewed_ids.includes(placeId)) {
                 this.places_reviewed_ids.push(placeId);
                 this.last_session_at = reviewed_at;
+                this.count_places_labeled_last_session = newCountInSession;
                 this._incrementPlacesLabeled();
                 await this.sendToDb();
                 return true;

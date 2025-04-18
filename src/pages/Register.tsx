@@ -1,136 +1,173 @@
-import { useRef, useState } from 'react';
-import { auth } from '../firebase';
-import { Link } from 'react-router-dom';
-import { Autocomplete } from '@react-google-maps/api';
-import { UserInfo } from '../models/UserInfo';
+import type React from "react"
+
+import { useRef, useState } from "react"
+import { Link } from "react-router-dom"
+import { Autocomplete as GoogleAutocomplete } from "@react-google-maps/api"
+import { auth } from "../firebase"
+import { UserInfo } from "../models/UserInfo"
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Container,
+  Grid,
+  InputAdornment,
+  Link as MuiLink,
+  TextField,
+  Typography,
+} from "@mui/material"
+import { createTheme, ThemeProvider } from "@mui/material/styles"
+import { teal } from "@mui/material/colors"
+import LocationOnIcon from "@mui/icons-material/LocationOn"
+
+// Create a theme instance with teal as the primary color
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: teal[500],
+    },
+  },
+})
 
 const Register = () => {
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [location, setLocation] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [place, setPlace] = useState<google.maps.places.PlaceResult | null>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [location, setLocation] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [place, setPlace] = useState<google.maps.places.PlaceResult | null>(null)
 
   const handlePlaceChanged = () => {
     if (autocompleteRef.current) {
-      const place = autocompleteRef.current.getPlace();
-      setPlace(place);
-      setLocation(`${place.name} - ${place.formatted_address}` || '');
+      const place = autocompleteRef.current.getPlace()
+      setPlace(place)
+      setLocation(`${place.name} - ${place.formatted_address}` || "")
     }
-  };
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+    e.preventDefault()
+    setError("")
+    setLoading(true)
 
     try {
-      await auth.signup(email, password);
-      const user = auth.getCurrentUser();
+      await auth.signup(email, password)
+      const user = auth.getCurrentUser()
       if (!user) {
-        throw new Error("User not found after signup");
+        throw new Error("User not found after signup")
       }
 
-      const locationData = place?.geometry?.location;
-      const locationLat = locationData ? locationData.lat() : 0;
-      const locationLon = locationData ? locationData.lng() : 0;
+      const locationData = place?.geometry?.location
+      const locationLat = locationData ? locationData.lat() : 0
+      const locationLon = locationData ? locationData.lng() : 0
 
-
-      const userDocData = new UserInfo(user.uid, 0, 0, null, user.email!, [], undefined, locationLat, locationLon);
-      await userDocData.sendToDb();
-      window.location.reload(); // Reload the page to update the user info in the app
+      const userDocData = new UserInfo(user.uid, 0, 0, null, user.email!, [], undefined, locationLat, locationLon)
+      await userDocData.sendToDb()
+      window.location.reload() // Reload the page to update the user info in the app
     } catch (error) {
-      console.error("Error creating user:", error);
-      setError("Failed to create an account. Please try again.");
+      console.error("Error creating user:", error)
+      setError("Failed to create an account. Please try again.")
+    } finally {
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Create an Account</h1>
-          <p className="mt-2 text-gray-600">Sign up to start labeling places</p>
-        </div>
-        
-        {error && <div className="p-3 text-sm text-red-500 bg-red-100 rounded">{error}</div>}
-        
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="location" className="block text-sm font-medium text-gray-700">
-              A cidade que você mais frequenta:
-            </label>
-              <Autocomplete
-                onLoad={(autocomplete) => (autocompleteRef.current = autocomplete)}
-                onPlaceChanged={handlePlaceChanged}
-              >
-                <input
-                  id="location"
-                  name="location"
-                  type="text"
-                  required
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="block w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="City, Country"
-                />
-              </Autocomplete>
-          </div>
-          
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              {loading ? 'Creating Account...' : 'Sign Up'}
-            </button>
-          </div>
-        </form>
-        
-        <div className="text-center">
-          <p className="text-sm text-gray-600">
-            Already have an account?{' '}
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
-              Sign in
-            </Link>
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-};
+    <ThemeProvider theme={theme}>
+      <Container component="main" maxWidth="xs">
+        <Box
+          sx={{
+            marginTop: 8,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            minHeight: "100vh",
+          }}
+        >
+          <Card sx={{ mt: 8, width: "100%", boxShadow: 3 }}>
+            <CardContent>
+              <Typography component="h1" variant="h5" align="center" gutterBottom>
+                Create an Account
+              </Typography>
+              <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
+                Sign up to start labeling places
+              </Typography>
 
-export default Register;
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {error}
+                </Alert>
+              )}
+
+              <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  id="email"
+                  label="Email Address"
+                  name="email"
+                  autoComplete="email"
+                  autoFocus
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  name="password"
+                  label="Password"
+                  type="password"
+                  id="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+
+                <GoogleAutocomplete
+                  onLoad={(autocomplete) => (autocompleteRef.current = autocomplete)}
+                  onPlaceChanged={handlePlaceChanged}
+                >
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="location"
+                    label="A cidade que você mais frequenta"
+                    name="location"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LocationOnIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </GoogleAutocomplete>
+
+                <Button type="submit" fullWidth variant="contained" sx={{ mt: 3, mb: 2 }} disabled={loading}>
+                  {loading ? "Creating Account..." : "Sign Up"}
+                </Button>
+                <Grid container justifyContent="center">
+                  <Grid>
+                    <MuiLink component={Link} to="/login" variant="body2">
+                      {"Already have an account? Sign In"}
+                    </MuiLink>
+                  </Grid>
+                </Grid>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+      </Container>
+    </ThemeProvider>
+  )
+}
+
+export default Register
