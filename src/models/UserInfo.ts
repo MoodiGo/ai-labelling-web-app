@@ -4,6 +4,7 @@ import { db } from "../firebase";
 export class UserInfo {
     id?: string;
     count_places_labeled_last_session: number;
+    skipped_places_ids: string[];
     count_places_labeled_total: number;
     firebase_uid: string;
     last_session_at: Date | null;
@@ -20,7 +21,8 @@ export class UserInfo {
         places_reviewed_ids?: string[],
         id?: string,
         location_lat?: number,
-        location_lon?: number
+        location_lon?: number,
+        skipped_places_ids?: string[]
     ) {
         this.firebase_uid = firebase_uid;
         this.count_places_labeled_last_session = count_places_last_session || 0;
@@ -31,21 +33,41 @@ export class UserInfo {
         this.id = id || undefined;
         this.location_lat = location_lat || undefined;
         this.location_lon = location_lon || undefined;
+        this.skipped_places_ids = skipped_places_ids || [];
     }
 
     _incrementPlacesLabeled() {
-        this.count_places_labeled_last_session += 1;
         this.count_places_labeled_total += 1;
     }
 
-    async addReviewedPlace(placeId: string) : Promise<boolean> {
-        if (!this.places_reviewed_ids.includes(placeId)) {
-            this.places_reviewed_ids.push(placeId);
-            this._incrementPlacesLabeled();
-            await this.sendToDb();
-            return true;
+    async skipPlace(placeId: string) : Promise<boolean> { 
+        try {
+            if (!this.skipped_places_ids.includes(placeId)) {
+                this.skipped_places_ids.push(placeId);
+                await this.sendToDb();
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error("Error skipping place", error);
+            return false;
         }
-        return false;
+    }
+
+    async addReviewedPlace(placeId: string, reviewed_at: Date) : Promise<boolean> {
+        try {
+            if (!this.places_reviewed_ids.includes(placeId)) {
+                this.places_reviewed_ids.push(placeId);
+                this.last_session_at = reviewed_at;
+                this._incrementPlacesLabeled();
+                await this.sendToDb();
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error("Error adding reviewed place", error);
+            return false;
+        }
     }
     
     getData(){
@@ -57,20 +79,28 @@ export class UserInfo {
             name: this.name,
             places_reviewed_ids: this.places_reviewed_ids,
             location_lat: this.location_lat,
-            location_lon: this.location_lon
+            location_lon: this.location_lon,
+            skipped_places_ids: this.skipped_places_ids
         }
     }
 
     async sendToDb(){
-        const collectionName = 'users';
-        if(this.id){
-            // update
-            const docRef = doc(db, collectionName, this.id);
-            await setDoc(docRef, this.getData(), { merge: true });
-        }else{
-            const col = collection(db, collectionName);
-            // create new
-            await addDoc(col, this.getData());
+        try {
+            const collectionName = 'users';
+            if(this.id){
+                // update
+                const docRef = doc(db, collectionName, this.id);
+                await setDoc(docRef, this.getData(), { merge: true });
+                return true;
+            }else{
+                const col = collection(db, collectionName);
+                // create new
+                await addDoc(col, this.getData());
+                return true;
+            }
+        } catch (error) {
+            console.error("Error sending user info to db", error);
+            return false;
         }
     }
 
@@ -79,13 +109,10 @@ export class UserInfo {
         try{
             const docRef = collection(db, collectionName);
 
-            console.log("Getting user info from db", docRef.id, firebase_uid, docRef.path)
-
-            // todo - get doc with where clause
             const q = query(docRef, where("firebase_uid", "==", firebase_uid));
             const documents = await getDocs(q);
             if(documents.empty){
-                console.log("No user found in db", firebase_uid);
+                console.warn("No user found in db", firebase_uid);
                 return null;
             }
 
@@ -95,12 +122,11 @@ export class UserInfo {
              } as UserInfo));
 
              if(results.length === 0){
-                console.log("No user found in db", firebase_uid);
+                console.warn("No user found in db", firebase_uid);
                 return null;
             }
 
             const document = results[0];
-            console.log("User found in db", document, firebase_uid);
             return new UserInfo(
                 document.firebase_uid,
                 document?.count_places_labeled_last_session,

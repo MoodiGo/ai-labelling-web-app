@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { auth } from '../firebase';
-import { Link, useNavigate } from 'react-router-dom';
-import { Autocomplete, Libraries, LoadScript } from '@react-google-maps/api';
+import { Link } from 'react-router-dom';
+import { Autocomplete } from '@react-google-maps/api';
 import { UserInfo } from '../models/UserInfo';
 
 const Register = () => {
@@ -11,15 +11,13 @@ const Register = () => {
   const [location, setLocation] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
   const [place, setPlace] = useState<google.maps.places.PlaceResult | null>(null);
 
-  const libraries: Libraries = ["places"];
-  
   const handlePlaceChanged = () => {
     if (autocompleteRef.current) {
       const place = autocompleteRef.current.getPlace();
       setPlace(place);
+      setLocation(`${place.name} - ${place.formatted_address}` || '');
     }
   };
 
@@ -42,7 +40,7 @@ const Register = () => {
 
       const userDocData = new UserInfo(user.uid, 0, 0, null, user.email!, [], undefined, locationLat, locationLon);
       await userDocData.sendToDb();
-      navigate("/dashboard");
+      window.location.reload(); // Reload the page to update the user info in the app
     } catch (error) {
       console.error("Error creating user:", error);
       setError("Failed to create an account. Please try again.");
@@ -94,10 +92,6 @@ const Register = () => {
             <label htmlFor="location" className="block text-sm font-medium text-gray-700">
               A cidade que você mais frequenta:
             </label>
-            <LoadScript
-              googleMapsApiKey={process.env.REACT_APP_GOOGLE_PLACES_API_KEY ?? "AIzaSyDuDgx-SdhssZJhnPUDJcVM24olMCobiI8"} // Replace with your key
-              libraries={libraries}
-            >
               <Autocomplete
                 onLoad={(autocomplete) => (autocompleteRef.current = autocomplete)}
                 onPlaceChanged={handlePlaceChanged}
@@ -113,8 +107,6 @@ const Register = () => {
                   placeholder="City, Country"
                 />
               </Autocomplete>
-            </LoadScript>
-            
           </div>
           
           <div>

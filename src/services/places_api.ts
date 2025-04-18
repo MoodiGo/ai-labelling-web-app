@@ -23,13 +23,10 @@ export class PlacesApiService {
         this.instance = null;
         const userinfo = userDataService.getUserInfo();
 
-        console.log("userinfo", userinfo);
-
-        
         this.refLat = userinfo?.location_lat || 0;
         this.refLng = userinfo?.location_lon || 0;
         this.resultsList = [];
-        this.userLabeledPlaces = userinfo?.places_reviewed_ids || [];
+        this.userLabeledPlaces = userinfo?.places_reviewed_ids?.concat(userinfo?.skipped_places_ids) || [];
 
         // Create a dummy map element to use the PlacesService (required)
         const dummyMap = document.createElement("div");
@@ -55,7 +52,7 @@ export class PlacesApiService {
 
         for (const type of types) {
             if (this.resultsList.length >= 25) {
-              console.log("Reached max of 25 results, stopping search.");
+              console.warn("Reached max of 25 results, stopping search.");
               break;
             }
             await this._searchByType(type, location);
@@ -64,41 +61,30 @@ export class PlacesApiService {
         // randomize the order of the results and limit to 25
         this.resultsList = this.resultsList.sort(() => Math.random() - 0.5).slice(0, 25);
 
-        console.log("Final results list:", this.resultsList);
-        console.log("User labeled places:", this.userLabeledPlaces);
+        console.info("Final results list:", this.resultsList);
     }
 
-    static async getPictureUrl(place: google.maps.places.PlaceResult): Promise<string> {
-      // const reqUrl = `https://maps.googleapis.com/maps/api/place/details/json?placeid=${place.place_id}&key=AIzaSyDuDgx-SdhssZJhnPUDJcVM24olMCobiI8`;
-      
-      // `https://maps.googleapis.com/maps/api/place/details/json?place_id=${currentPlace.place_id}&fields=photos&key=AIzaSyDuDgx-SdhssZJhnPUDJcVM24olMCobiI8`;
-      // const response = await fetch(reqUrl);
+    static async getPictureUrl(place: google.maps.places.PlaceResult): Promise<string[]> {
       const instance = new google.maps.places.PlacesService(document.createElement("div"));
       const request: google.maps.places.PlaceDetailsRequest = {
         placeId: place!.place_id!,
         fields: ["photos"],
       };
-      let photoUrl = '';
 
-      return await new Promise<string>((resolve) => {
-        instance.getDetails(request, () => {
-          if(place.photos && place.photos.length > 0) {
-            photoUrl = place.photos![0].getUrl({ maxWidth: 400 });
+      return await new Promise<string[]>((resolve) => {
+        let photoUrl = [] as string[];
+        instance.getDetails(request, (p) => {
+          if(!p || !p.photos || p.photos.length === 0) {
+            resolve([]);
           }
-          resolve(photoUrl.split("=s")[0]);
+          let photos = p!.photos ?? [];
+          let count = photos.length < 3 ? photos.length : 3; 
+          for(let i = 0; i < count; i++) {
+            photoUrl.push(photos[i].getUrl({ maxWidth: 400 }).split("=s")[0]);
+          }
+          resolve(photoUrl);
         });
       });
-
-
-      // if (response.status !== 200) {
-      //   console.error("Error fetching place details:", response.status);
-      //   return '';
-      // }
-      // const data = await response.json();
-      // console.log(data);
-      // const photoRef = data.result.photos[0].photo_reference;
-      // const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoRef}&key=AIzaSyDuDgx-SdhssZJhnPUDJcVM24olMCobiI8`;
-
     }
 
     async _searchByType(type: string, location: google.maps.LatLng): Promise<void> {
@@ -126,7 +112,6 @@ export class PlacesApiService {
           const toAdd = newResults.slice(0, spaceLeft);
       
           this.resultsList.push(...toAdd);
-          console.log(`Places of type ${type}:`, toAdd);
         } catch (error) {
           console.warn(`Error fetching places of type ${type}:`, error);
         }
