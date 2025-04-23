@@ -31,13 +31,13 @@ import {
 import { createTheme, ThemeProvider } from "@mui/material/styles"
 import { teal } from "@mui/material/colors"
 import HomeIcon from "@mui/icons-material/Home"
-import LocationOnIcon from "@mui/icons-material/LocationOn"
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft"
 import ChevronRightIcon from "@mui/icons-material/ChevronRight"
 import SkipNextIcon from "@mui/icons-material/SkipNext"
 import SendIcon from "@mui/icons-material/Send"
 import StarIcon from "@mui/icons-material/Star"
-
+import { OpenInNew, LocationOn } from "@mui/icons-material/index"
+import { get } from "http"
 // Create a theme instance with teal as the primary color
 const theme = createTheme({
   palette: {
@@ -48,13 +48,14 @@ const theme = createTheme({
 })
 
 const PlaceLabeling = () => {
-  const mock = true
+  const mock = false
   const mockPlaceImageUrl = [
     "https://lh3.googleusercontent.com/places/ANXAkqHNmsWc59aKgwMc3uoAwcDtL-GUbUcAZiyc-0-M-WE7LRrNcNqeL6jEx5qiLTdRpx1gx6tqpLDFqS5Y5B9q00wCUwVsmEIjVIo",
   ]
   const [places, setPlaces] = useState<google.maps.places.PlaceResult[]>([])
   const [currentPlace, setCurrentPlace] = useState<google.maps.places.PlaceResult | null>(null)
   const [placePicUrl, setPlacePicUrl] = useState<string[]>([])
+  const [placeUrl, setPlaceUrl] = useState<string>("")
   const [currentPlaceIndex, setCurrentPlaceIndex] = useState<number>(0)
   const [vibes, setVibes] = useState<string[]>(["", "", ""])
   const [loading, setLoading] = useState<boolean>(true)
@@ -64,6 +65,33 @@ const PlaceLabeling = () => {
   const [error, setError] = useState<string>("")
   const [imageLoading, setImageLoading] = useState<boolean>(true)
   const navigate = useNavigate()
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+
+  const [firstRender, setFirstRender] = useState(true)
+
+  async function getPlaces(callback?: () => void) {
+    try {
+      const I = await PlacesApiService.getInstance();
+      if (!I) throw new Error("PlacesApiService instance is null");
+  
+      await I.search();
+      console.log("PlacesApiService instance", I);
+      console.log("PlacesApiService resultsList", I.resultsList);
+      setPlacesData(I.resultsList);
+      callback?.();
+      setLoading(false);
+    } catch (err) {
+      console.error("Failed to get places", err);
+    }
+  }
+  
+
+  function setPlacesData(data: google.maps.places.PlaceResult[]) {
+    setPlaces(data);
+    setVibes(["", "", ""]);
+    setCurrentPlaceIndex(0);
+    setCurrentPlace(data[0] ?? null);
+  }
 
   useEffect(() => {
     const initSession = async () => {
@@ -73,16 +101,13 @@ const PlaceLabeling = () => {
       }
 
       try {
-        const placesService = new PlacesApiService()
-        await placesService.search()
-        setPlaces(placesService.resultsList)
-        setLoading(false)
-        setVibes(["", "", ""])
-        LabelingSessionService.instance()
-        .then((sess) => {
-          setSession(sess)
-          setPlacesLabeled(sess.countPlacesLabeled)
-        })  
+        getPlaces(() => {
+          LabelingSessionService.instance()
+          .then((sess) => {
+            setSession(sess)
+            setPlacesLabeled(sess.countPlacesLabeled)
+          })
+        });
       } catch (error) {
         console.error("Error initializing session:", error)
         setError("Failed to initialize session")
@@ -118,12 +143,22 @@ const PlaceLabeling = () => {
       }
     }
 
-    setUser()
+    if(firstRender){
+      console.log("firstRender is true")
+      setFirstRender(false)
+      setUser()
+    }
   }, [])
 
   useEffect(() => {
-    setCurrentPlace(places[currentPlaceIndex] ?? null)
-  }, [places, currentPlaceIndex])
+    if(places.length > 0 && currentPlaceIndex > places.length - 1 && !firstRender) {
+      getPlaces(() => {
+      })
+    }else if(places.length > 0){
+      setCurrentPlace(places[currentPlaceIndex] ?? null)
+    }
+  }, [currentPlaceIndex])
+
 
   useEffect(() => {
     if (currentPlace) {
@@ -131,11 +166,16 @@ const PlaceLabeling = () => {
     }
   }, [currentPlace])
 
+  useEffect(() => {
+    setCurrentImageIndex(0)
+  }, [placePicUrl])
+
   const getPicture = useCallback(async () => {
     if (!currentPlace) return
     setImageLoading(true)
-    const urls = await PlacesApiService.getPictureUrl(currentPlace)
-    setPlacePicUrl(urls)
+    const urls = await PlacesApiService.getDetails(currentPlace)
+    setPlacePicUrl(urls.pictures || [])
+    setPlaceUrl(urls.url || "")
     setImageLoading(false)
   }, [currentPlace])
 
@@ -185,14 +225,11 @@ const PlaceLabeling = () => {
 
   const navigateImage = (direction: "prev" | "next") => {
     if (placePicUrl.length <= 1) return
-
-    if (direction === "prev") {
-      const prev = (placePicUrl.length + placePicUrl.indexOf(placePicUrl[0]) - 1) % placePicUrl.length
-      setPlacePicUrl([...placePicUrl.slice(prev), ...placePicUrl.slice(0, prev)])
-    } else {
-      const next = (placePicUrl.indexOf(placePicUrl[0]) + 1) % placePicUrl.length
-      setPlacePicUrl([...placePicUrl.slice(next), ...placePicUrl.slice(0, next)])
-    }
+    setCurrentImageIndex((prev) =>
+      direction === "prev"
+        ? (prev - 1 + placePicUrl.length) % placePicUrl.length
+        : (prev + 1) % placePicUrl.length
+    )
   }
 
   if (loading || !currentPlace) {
@@ -230,7 +267,7 @@ const PlaceLabeling = () => {
         <AppBar position="static">
           <Toolbar>
             <Box display="flex" alignItems="center" sx={{ flexGrow: 1 }}>
-              <LocationOnIcon sx={{ mr: 1 }} />
+              <LocationOn sx={{ mr: 1 }} />
               <Typography variant="h6">Place Labeling</Typography>
             </Box>
             <Box display="flex" alignItems="center" sx={{ mr: 2 }}>
@@ -269,10 +306,11 @@ const PlaceLabeling = () => {
                 <CardMedia
                   component="img"
                   height="400"
-                  image={mock ? mockPlaceImageUrl[0] : placePicUrl[0]}
+                  image={mock ? mockPlaceImageUrl[0] : placePicUrl[currentImageIndex]}
                   alt={currentPlace.name || "Place"}
                   onLoad={() => setImageLoading(false)}
                 />
+
               ) : (
                 <Box
                   display="flex"
@@ -320,6 +358,19 @@ const PlaceLabeling = () => {
                   ))}
                 </Box>
               </Box>
+
+              <Divider sx={{ my: 2 }} />
+              
+                <Button
+                  title="See on Google Maps"
+                  variant="text"
+                  href={placeUrl}
+                  target="_blank"
+                  startIcon={<LocationOn />}
+                  sx={{ mb: 2 }}
+                >
+                  See more
+                </Button>
 
               <Divider sx={{ my: 2 }} />
 

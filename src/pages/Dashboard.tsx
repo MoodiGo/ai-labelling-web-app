@@ -57,7 +57,6 @@ const Dashboard = () => {
           .then((session) => {
             setSessionActive(session.canLabel)
             setPlacesLabeled(session.countPlacesLabeled)
-            console.log("Session active:", session.countPlacesLabeled)
           });
         })
 

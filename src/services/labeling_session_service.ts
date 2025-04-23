@@ -22,10 +22,12 @@ export class LabelingSessionService {
     }
 
     static async instance() {
-        const instance = new LabelingSessionService();
-        await instance._setLastSessionAndCountPlacesLabeled();
-        instance.placesLabeledIds = await instance._getUserLabeledIds() 
-        return instance;
+        return new Promise<LabelingSessionService>(async (resolve, reject) => {
+            const instance = new LabelingSessionService();
+            await instance._setLastSessionAndCountPlacesLabeled();
+            instance.placesLabeledIds = await instance._getUserLabeledIds() 
+            resolve(instance);
+        });
     }
 
     
@@ -137,7 +139,7 @@ export class LabelingSessionService {
                 );
 
                 if(await review.sendToDb()){
-                    console.log("Review sent to Firestore successfully.");
+                    console.info("Review sent to Database successfully.");
                     return true;
                 }
 

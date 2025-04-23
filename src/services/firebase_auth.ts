@@ -78,7 +78,6 @@ export class FirebaseAuth {
     }
 
     getCurrentUser(): User | null {
-        // console.log("Current user:", this.auth.currentUser);
         return this.auth.currentUser;
     }
 
