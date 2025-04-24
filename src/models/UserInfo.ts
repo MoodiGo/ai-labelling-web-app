@@ -42,11 +42,14 @@ export class UserInfo {
 
     async skipPlace(placeId: string) : Promise<boolean> { 
         try {
+            console.log("skipped places_ids", this.skipped_places_ids);
             if (!this.skipped_places_ids.includes(placeId)) {
+                console.log("Skipping place", placeId);
                 this.skipped_places_ids.push(placeId);
                 await this.sendToDb();
                 return true;
             }
+            console.log("Place already skipped", placeId);
             return false;
         } catch (error) {
             console.error("Error skipping place", error);
@@ -137,7 +140,8 @@ export class UserInfo {
                 document?.places_reviewed_ids,
                 document.id,
                 document?.location_lat,
-                document?.location_lon
+                document?.location_lon,
+                document?.skipped_places_ids
             );
         }catch(er){
             console.error("Error getting user info from db", er);

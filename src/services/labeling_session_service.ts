@@ -99,10 +99,10 @@ export class LabelingSessionService {
             console.error("You have reached the maximum number of places you can label in this session.");
             return false;
         }
-        if (this.placesLabeledIds.length >= 25) {
-            console.error("You have already labeled this place.");
-            return false;
-        }
+        // if (this.placesLabeledIds.length >= 25) {
+        //     console.error("You have already labeled this place.");
+        //     return false;
+        // }
         if (this.placesLabeledIds.includes(placeId)) {
             console.error("You have already labeled this place.");
             return false;
